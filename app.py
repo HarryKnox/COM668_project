@@ -53,7 +53,8 @@ def add_exercise_post():
             "type" : request.form["type"],
             "dist" : request.form["dist"],
             "dType" : request.form["dType"],
-            "time" : request.form["time"]
+            "time" : request.form["time"],
+            "userID" : request.form["userID"]
         }
 
         # data inserted and id taken
