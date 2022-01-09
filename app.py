@@ -1,3 +1,4 @@
+from re import S
 from flask import Flask, jsonify, make_response, request
 from pymongo import MongoClient
 from flask_cors import CORS
@@ -45,15 +46,21 @@ def add_exercise_post():
     if "type" in request.form and "dist" in request.form and \
     "dType" in request.form and "time" in request.form :
 
+        # using dType convert distance to KM
+        if request.form["dType"] == "Kilometres":
+            distance = request.form["dist"]
+        
+        else:
+            distance = int(request.form["dist"])*1.60934
+
         new_post = {
             "_id" : ObjectId(),
             "userName" : request.form["userName"],
             "date" : request.form["date"],
             "text" : request.form["text"],
             "type" : request.form["type"],
-            "dist" : request.form["dist"],
-            "dType" : request.form["dType"],
-            "time" : request.form["time"],
+            "dist" : distance,
+            "time" : time2Minutes(request.form["time"]),
             "userID" : request.form["userID"]
         }
 
@@ -81,7 +88,70 @@ def delete_post(id):
     else:
         return make_response ( jsonify({"error" : "Invalid post ID"}), 404)
 
+# API route to generate stats for a user
+@app.route("/api/v1.0/stats/<string:id>", methods = ["GET"])
+def get_user_stats(id):
 
+    # empty array to hold user's posts
+    users_posts = []
+
+    # loop through each post and append matching ID posts
+    for post in posts.find():
+        if(post["userID"] == id):
+            users_posts.append(post)
+
+    stats_to_return = {
+        "favourite_exercise" : getFavouriteType(users_posts),
+        "total_exercises" : len(users_posts),
+        "total_distance" : 0,
+        "total_time" : 0,
+        "average_speed" : 0
+    }
+
+    # loop through all user posts and take values
+    for userPost in users_posts:
+        stats_to_return["total_distance"] = int(stats_to_return["total_distance"]) + int(userPost["dist"])
+        stats_to_return["total_time"] = int(stats_to_return["total_time"]) + int(userPost["time"])
+
+    # average speed set
+    stats_to_return["average_speed"] = round(stats_to_return["total_distance"]/stats_to_return["total_time"],2)
+
+    return(stats_to_return)
+
+
+# function to find most frequent exercise type in a list of posts
+# DOESNT HANDLE DRAWS
+def getFavouriteType(posts):
+
+    # validation for if no posts
+    if (len(posts) == 0):
+        return("None")
+
+    # array to hold all post types
+    types = []
+
+    # loop through all posts and append to array
+    for post in posts:
+        types.append(post["type"])
+
+    # find most common one
+    favourite = max(set(types), key=types.count)
+
+    # value returned
+    return(favourite)
+
+
+
+# function to convert from time format to minutes
+def time2Minutes(time):
+
+    # time split by colon
+    split_time =  time.split(":")
+
+    # var to hold overall time in minutes - hours added
+    minutes = int(split_time[0])*60 + int(split_time[1]) + int(split_time[2])/60
+
+    return(minutes)
 
 
 # flask app ran
