@@ -4,6 +4,9 @@ from pymongo import MongoClient
 from flask_cors import CORS
 from bson import ObjectId
 from datetime import date,datetime,timedelta
+import calendar
+import matplotlib.pyplot as plt
+
 
 app = Flask(__name__)
 CORS(app)
@@ -57,7 +60,7 @@ def add_exercise_post():
         sliced_date = request.form["date"][0:24]
         
         # use below to fake dates, for test data
-        #sliced_date = "Mon Jan 12 2021 01:26:05"
+        #sliced_date = "Wed Jan 05 2022 01:26:05"
 
         fixed_date = datetime.strptime(sliced_date,'%a %b %d %Y %H:%M:%S')
 
@@ -98,6 +101,7 @@ def delete_post(id):
         return make_response ( jsonify({"error" : "Invalid post ID"}), 404)
 
 # API route to generate stats for a user
+# parameters are ID and time period in HTTPparams
 @app.route("/api/v1.0/stats/<string:id>", methods = ["GET"])
 def get_user_stats(id):
 
@@ -112,6 +116,153 @@ def get_user_stats(id):
 
     # posts filtered out according to time period
     time_period = request.args.get("param")
+
+    # posts filtered by the time period
+    correctDate_posts = filter_by_period(time_period, users_posts)
+
+    # dictionary to hold stats to be returned
+    stats_to_return = {
+        "favourite_exercise" : getFavouriteType(correctDate_posts),
+        "total_exercises" : len(correctDate_posts),
+        "total_distance" : 0,
+        "total_time" : 0,
+        "average_speed" : 0
+    }
+
+    # loop through all user posts and take values
+    for userPost in correctDate_posts:
+        stats_to_return["total_distance"] = float(stats_to_return["total_distance"]) + float(userPost["dist"])
+        stats_to_return["total_time"] = float(stats_to_return["total_time"]) + float(userPost["time"])
+
+    # average speed set
+    stats_to_return["average_speed"] = round(stats_to_return["total_time"]/stats_to_return["total_distance"],2)
+
+    return(stats_to_return)
+
+
+# API route to generate activity graph for a user
+# parameters are ID and time period in HTTPparams
+@app.route("/api/v1.0/graphs/<string:id>", methods = ["GET"])
+def get_user_activity(id):
+    
+    # empty array to hold user's posts
+    users_posts = []
+
+    # loop through each post and append matching ID posts
+    for post in posts.find():
+        if(post["userID"] == id):
+            users_posts.append(post)
+
+
+    # posts filtered out according to time period
+    time_period = request.args.get("param")
+
+    # posts filtered by the time period
+    correctDate_posts = filter_by_period(time_period, users_posts)
+
+    # array to hold all dates
+    allDates = []
+
+    # loop through posts and append to date to all array
+    for post in correctDate_posts:
+        allDates.append(post["date"].date())
+
+
+    # weekly graph data
+    if time_period == "Weekly":
+
+        # array to hold previous week
+        prev_week = {}
+
+        # loop through last 7 days
+        for i in range(0,7):
+            aDay = ((date.today())-timedelta(days=i))
+
+            # frequency count
+            counter = 0
+
+            # counter incremented for how many times post on that day
+            for postDate in allDates:
+                if postDate == aDay:
+                    counter = counter+1
+
+            # day and frequency added to dictionary
+            prev_week[str(aDay)] = counter 
+        
+        return (prev_week)
+
+
+        # weekly graph
+    
+    # monthly graph data
+    if time_period == "Monthly":
+
+        # array to hold the month data
+        month_data = {}
+
+        # get the current month and year
+        thisMonth = date.today().month
+        thisYear =  date.today().year
+
+        # get num of days in month Reference ->(https://stackoverflow.com/questions/21231789/how-to-get-all-days-in-current-month)
+        daysInMonth = calendar.monthrange(thisYear,thisMonth)[1]
+
+        # get first day in month
+        monthStart = date(thisYear,thisMonth,1)
+
+        # loop through from first day to last day in month and append each day
+        for i in range(daysInMonth+1):
+            day = monthStart + timedelta(days=i)
+
+            # how many posts on this day counter
+            frequencyCount = 0
+
+            # for each match found, increment counter
+            for aDate in allDates:
+                if aDate == day:
+                    frequencyCount = frequencyCount+1
+
+            # each day's data appended
+            month_data[str(day)] = frequencyCount 
+
+        # completed dict returned for graphing
+        return (month_data)
+
+    # all time graph data
+    if time_period == "All Time":
+
+        # array to hold the dates data
+        all_date_data = {}
+
+        # get earliest post
+        firstPost = min(allDates)
+
+        # get latest post
+        latestPost = max(allDates)
+
+        # get num of days
+        numDays = latestPost - firstPost
+
+        # loop through from first day to last day and append each day
+        for i in range(numDays.days+1):
+            day = firstPost + timedelta(days=i)
+
+            # how many posts on this day counter
+            frequencyCount = 0
+
+            # for each match found, increment counter
+            for aDate in allDates:
+                if aDate == day:
+                    frequencyCount = frequencyCount+1
+
+            # each day's data appended
+            all_date_data[str(day)] = frequencyCount 
+
+        # completed dict returned for graphing
+        return (all_date_data)
+
+# function to filter posts according to time period
+def filter_by_period(time_period, users_posts):
 
     # get todays date
     today = date.today()
@@ -150,27 +301,11 @@ def get_user_stats(id):
                     correctDate_posts.append(post)
 
     # for all time
-    if time_period == "AllTime":
+    if time_period == "All Time":
         correctDate_posts = users_posts
 
-    # dictionary to hold stats to be returned
-    stats_to_return = {
-        "favourite_exercise" : getFavouriteType(correctDate_posts),
-        "total_exercises" : len(correctDate_posts),
-        "total_distance" : 0,
-        "total_time" : 0,
-        "average_speed" : 0
-    }
-
-    # loop through all user posts and take values
-    for userPost in correctDate_posts:
-        stats_to_return["total_distance"] = int(stats_to_return["total_distance"]) + int(userPost["dist"])
-        stats_to_return["total_time"] = int(stats_to_return["total_time"]) + int(userPost["time"])
-
-    # average speed set
-    stats_to_return["average_speed"] = round(stats_to_return["total_time"]/stats_to_return["total_distance"],2)
-
-    return(stats_to_return)
+    # posts returned
+    return(correctDate_posts)
 
 
 # function to find most frequent exercise type in a list of posts
@@ -193,7 +328,6 @@ def getFavouriteType(posts):
 
     # value returned
     return(favourite)
-
 
 
 # function to convert from time format to minutes
