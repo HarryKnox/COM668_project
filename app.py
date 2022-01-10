@@ -1,9 +1,9 @@
-from re import S
+import datetime
 from flask import Flask, jsonify, make_response, request
 from pymongo import MongoClient
 from flask_cors import CORS
 from bson import ObjectId
-
+from datetime import date,datetime,timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -53,10 +53,19 @@ def add_exercise_post():
         else:
             distance = int(request.form["dist"])*1.60934
 
+        # slice out timezone bit and then set string to date
+        sliced_date = request.form["date"][0:24]
+        
+        # use below to fake dates, for test data
+        #sliced_date = "Mon Jan 12 2021 01:26:05"
+
+        fixed_date = datetime.strptime(sliced_date,'%a %b %d %Y %H:%M:%S')
+
+        # new post dictionary delcared
         new_post = {
             "_id" : ObjectId(),
             "userName" : request.form["userName"],
-            "date" : request.form["date"],
+            "date" : fixed_date,
             "text" : request.form["text"],
             "type" : request.form["type"],
             "dist" : distance,
@@ -100,16 +109,61 @@ def get_user_stats(id):
         if(post["userID"] == id):
             users_posts.append(post)
 
+
+    # posts filtered out according to time period
+    time_period = request.args.get("param")
+
+    # get todays date
+    today = date.today()
+
+    # var to hold new posts
+    correctDate_posts = []
+
+    # take only posts from last month
+    if time_period == "Monthly":
+
+        # loop through posts
+        for post in users_posts:
+
+            # if correct month and year then append
+            if post["date"].month == today.month and post["date"].year == today.year:
+                correctDate_posts.append(post)
+        
+    
+    # takes only post from last week
+    if time_period == "Weekly":
+
+        # loop through posts
+        for post in users_posts:
+
+            # array of days in last week
+            lastWeek = []
+
+            # loop through last 7 days
+            for i in range(0,7):
+                lastWeek.append(today-timedelta(days=i))
+
+            # if post date in last week array, then append
+            for day in lastWeek:
+                if post["date"].month == day.month and post["date"].year == day.year and \
+                    post["date"].day == day.day:
+                    correctDate_posts.append(post)
+
+    # for all time
+    if time_period == "AllTime":
+        correctDate_posts = users_posts
+
+    # dictionary to hold stats to be returned
     stats_to_return = {
-        "favourite_exercise" : getFavouriteType(users_posts),
-        "total_exercises" : len(users_posts),
+        "favourite_exercise" : getFavouriteType(correctDate_posts),
+        "total_exercises" : len(correctDate_posts),
         "total_distance" : 0,
         "total_time" : 0,
         "average_speed" : 0
     }
 
     # loop through all user posts and take values
-    for userPost in users_posts:
+    for userPost in correctDate_posts:
         stats_to_return["total_distance"] = int(stats_to_return["total_distance"]) + int(userPost["dist"])
         stats_to_return["total_time"] = int(stats_to_return["total_time"]) + int(userPost["time"])
 
