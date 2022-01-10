@@ -168,7 +168,7 @@ def get_user_stats(id):
         stats_to_return["total_time"] = int(stats_to_return["total_time"]) + int(userPost["time"])
 
     # average speed set
-    stats_to_return["average_speed"] = round(stats_to_return["total_distance"]/stats_to_return["total_time"],2)
+    stats_to_return["average_speed"] = round(stats_to_return["total_time"]/stats_to_return["total_distance"],2)
 
     return(stats_to_return)
 
