@@ -326,6 +326,14 @@ def getFavouriteType(posts):
     # find most common one
     favourite = max(set(types), key=types.count)
 
+    # sets nicer wording for exercise types
+    if favourite == "walk":
+        favourite = "Walking"
+    elif favourite == "run":
+        favourite = "Running"
+    elif favourite == "cycle":
+        favourite = "Cycling"
+
     # value returned
     return(favourite)
 
