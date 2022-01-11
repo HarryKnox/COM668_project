@@ -100,6 +100,7 @@ def delete_post(id):
     else:
         return make_response ( jsonify({"error" : "Invalid post ID"}), 404)
 
+
 # API route to generate stats for a user
 # parameters are ID and time period in HTTPparams
 @app.route("/api/v1.0/stats/<string:id>", methods = ["GET"])
@@ -137,7 +138,7 @@ def get_user_stats(id):
     # average speed set
     stats_to_return["average_speed"] = round(stats_to_return["total_time"]/stats_to_return["total_distance"],2)
 
-    return(stats_to_return)
+    return make_response(stats_to_return, 200)
 
 
 # API route to generate activity graph for a user
@@ -189,10 +190,8 @@ def get_user_activity(id):
             # day and frequency added to dictionary
             prev_week[str(aDay)] = counter 
         
-        return (prev_week)
+        return make_response(prev_week, 200)
 
-
-        # weekly graph
     
     # monthly graph data
     if time_period == "Monthly":
@@ -226,7 +225,7 @@ def get_user_activity(id):
             month_data[str(day)] = frequencyCount 
 
         # completed dict returned for graphing
-        return (month_data)
+        return make_response(month_data, 200)
 
     # all time graph data
     if time_period == "All Time":
@@ -259,7 +258,122 @@ def get_user_activity(id):
             all_date_data[str(day)] = frequencyCount 
 
         # completed dict returned for graphing
-        return (all_date_data)
+        return make_response(all_date_data, 200)
+
+
+
+# API route to generate a leaderboard
+# parameters are leaderboard type, exercise type and time period
+@app.route("/api/v1.0/leaderboards", methods = ["GET"])
+def get_leaderboard():
+
+    # parameters taken from args
+    exType = request.args.get("exType")
+    board = request.args.get("board")
+    period = request.args.get("period")
+
+    # get all posts
+    all_posts = []
+    for post in posts.find():
+        all_posts.append(post)
+
+    # posts filtered by time period
+    time_filtered_posts = filter_by_period(period,all_posts)
+
+
+    # filter posts by exercise type
+    type_filtered_posts = []
+
+    # if all types, don't filter. Else, filter by type
+    if exType == "All Types":
+        type_filtered_posts = time_filtered_posts
+    else:
+        # posts filtered by exercise type
+        for post in time_filtered_posts:
+            if post["type"][0] == (exType[0].lower()):
+                type_filtered_posts.append(post)
+
+    # leaderboard return data 2d dict declared
+    return_data = []
+
+    # user ID list, who have a post in type_filtered_posts
+    users = []
+
+    # get each user's ID that posted and append to users array
+    for post in type_filtered_posts:
+        if post["userID"] not in users:
+            users.append(post["userID"])
+
+
+    # loop for each user
+    for userID in users:
+
+        # vars set for leaderboard types
+        userName = ""
+        distanceCount = 0
+        activityCount = 0
+        timeCount = 0
+        avgSpeed = 0
+
+        # loop through posts and increment board types 
+        for post in type_filtered_posts:
+            if post["userID"] == userID:
+                userName = post["userName"]
+                distanceCount = round(distanceCount + float(post["dist"]),2)
+                activityCount = activityCount + 1
+                timeCount = round(timeCount + post["time"],2)
+
+        # validation needed for ZeroDivision error
+        if distanceCount>0:
+            avgSpeed = round(timeCount/distanceCount,2)
+
+        # DISTANCE
+        if board == "Distance" :
+            # return user obj to 2d dict
+            return_data.append( {
+                "name" : userName,
+                "value" : distanceCount
+            })
+
+        # TIME SPENT
+        elif board == "Time Spent" :
+            # return user obj to 2d dict
+            return_data.append( {
+                "name" : userName,
+                "value" : timeCount
+            })
+        
+        # NUM OF ACTIVITIES
+        elif board == "Number of Activities":
+            # return user obj to 2d dict
+            return_data.append( {
+                "name" : userName,
+                "value" : activityCount
+            })
+
+        # AVERAGE PACE
+        elif board == "Average Pace":
+            # return user obj to 2d dict
+            return_data.append( {
+                "name" : userName,
+                "value" : avgSpeed
+            })
+
+        # sort by value
+        return_data = sorted(return_data, key = lambda x: x['value'])
+
+        # only needs reversed when NOT avg pace
+        if board != "Average Pace":
+            return_data.reverse()
+
+    # returned
+    return make_response(jsonify(return_data),200)
+
+    
+    
+
+
+
 
 # function to filter posts according to time period
 def filter_by_period(time_period, users_posts):
@@ -348,6 +462,8 @@ def time2Minutes(time):
     minutes = int(split_time[0])*60 + int(split_time[1]) + int(split_time[2])/60
 
     return(minutes)
+
+
 
 
 # flask app ran
