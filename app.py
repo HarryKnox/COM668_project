@@ -7,8 +7,10 @@ from datetime import date,datetime,timedelta
 import calendar
 import matplotlib.pyplot as plt
 
-
+# Flask app created
 app = Flask(__name__)
+
+# initialises cross resource sharing
 CORS(app)
 
 # Get data from mongoDB server
@@ -16,8 +18,6 @@ client = MongoClient("mongodb://127.0.0.1:27017")
 db = client.fitnessApp
 posts = db.posts
 
-# variable for users collection
-#users = db.users
 
 # index app route
 @app.route('/')
@@ -52,7 +52,6 @@ def add_exercise_post():
         # using dType convert distance to KM
         if request.form["dType"] == "Kilometres":
             distance = request.form["dist"]
-        
         else:
             distance = int(request.form["dist"])*1.60934
 
@@ -62,9 +61,10 @@ def add_exercise_post():
         # use below to fake dates, for test data
         #sliced_date = "Wed Jan 05 2022 01:26:05"
 
+        # fixes date format
         fixed_date = datetime.strptime(sliced_date,'%a %b %d %Y %H:%M:%S')
 
-        # new post dictionary delcared
+        # new post dictionary declared
         new_post = {
             "_id" : ObjectId(),
             "userName" : request.form["userName"],
@@ -82,9 +82,54 @@ def add_exercise_post():
         # link for new post set
         new_post_link = "http://localhost:5000/api/v1.0/posts/" + str(new_post_id.inserted_id)
 
+    # appropriate response codes and messages returned
         return make_response( jsonify({"url" : new_post_link}), 201)
     else:
         return make_response( jsonify({"error" : "Missing form data"}), 404)
+
+
+# API route to edit an exercise post
+@app.route("/api/v1.0/posts/<string:id>", methods = ["PUT"])
+def edit_exercise_post(id):
+
+    # using dType convert distance to KM
+    if request.form["dType"] == "Kilometres":
+        distance = request.form["dist"]
+    else:
+        distance = int(request.form["dist"])*1.60934
+
+    # slice out timezone bit and then set string to date
+    sliced_date = request.form["date"][0:24]
+    
+    # use below to fake dates, for test data
+    #sliced_date = "Wed Jan 05 2022 01:26:05"
+
+    # date format fixed
+    fixed_date = datetime.strptime(sliced_date,'%a, %d %b %Y %H:%M:%S')
+
+    # correct posted is found and updated, using form data
+    if ("type" in request.form):
+        result = posts.update_one({"_id" : ObjectId(id)},{"$set" : 
+        {"text" : request.form["text"],
+        "type" : request.form["type"],
+        "dist" : distance,
+        "time" : time2Minutes(request.form["time"]),
+        "date" : fixed_date,
+        "userName" : request.form["userName"],
+        "userID" : request.form["userID"]
+        }})
+
+        # validation that result is found and returned
+        if result.matched_count == 1:
+            return make_response( jsonify("Success"), 200)
+        
+        # if no match found, return error msg with code
+        else:
+            return make_response( jsonify({"error" : "Invalid post ID"}), 404)
+
+    # if no form data, return error msg with code
+    else:
+        return make_response( jsonify({"error" : "Missing form data."}), 404)
 
 
 # API route to function to delete an exercise post
@@ -138,6 +183,7 @@ def get_user_stats(id):
     # average speed set
     stats_to_return["average_speed"] = round(stats_to_return["total_time"]/stats_to_return["total_distance"],2)
 
+    # appropriate response code and stats returned
     return make_response(stats_to_return, 200)
 
 
@@ -190,9 +236,9 @@ def get_user_activity(id):
             # day and frequency added to dictionary
             prev_week[str(aDay)] = counter 
         
+        # appropriate response code and graph data returned
         return make_response(prev_week, 200)
 
-    
     # monthly graph data
     if time_period == "Monthly":
 
@@ -372,9 +418,6 @@ def get_leaderboard():
     
     
 
-
-
-
 # function to filter posts according to time period
 def filter_by_period(time_period, users_posts):
 
@@ -461,6 +504,7 @@ def time2Minutes(time):
     # var to hold overall time in minutes - hours added
     minutes = int(split_time[0])*60 + int(split_time[1]) + int(split_time[2])/60
 
+    # minutes returned
     return(minutes)
 
 
